@@ -38,3 +38,9 @@ node_modules
 
 ### PhPStorm ###
 .idea/
+
+### Client Files ###
+*client/
+*lib/
+*spec/
+SpecRunner.html

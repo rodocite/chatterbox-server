@@ -1,45 +1,80 @@
-/*************************************************************
+var Db = require('tingodb')().Db,
+    assert = require('assert');
 
-You should implement your request handler function in this file.
+var db = new Db('./', {});
+// Fetch a collection to insert document into
+var collection = db.collection("message_store");
 
-requestHandler is already getting passed to http.createServer()
-in basic-server.js, but it won't work as is.
-
-You'll have to figure out a way to export this function from
-this file and include it in basic-server.js so that it actually works.
-
-*Hint* Check out the node module documentation at http://nodejs.org/api/modules.html.
-
-**************************************************************/
-
-var requestHandler = function(request, response) {
-  // Request and Response come from node's http module.
-  //
-  // They include information about both the incoming request, such as
-  // headers and URL, and about the outgoing response, such as its status
-  // and content.
-  //
-  // Documentation for both request and response can be found in the HTTP section at
-  // http://nodejs.org/documentation/api/
-
-  // Do some basic logging.
-  //
-  // Adding more logging to your server can be an easy way to get passive
-  // debugging help, but you should always be careful about leaving stray
-  // console.logs in your code.
+exports.requestHandler = function(request, response) {
   console.log("Serving request type " + request.method + " for url " + request.url);
-
-  // The outgoing status.
-  var statusCode = 200;
-
-  // See the note below about CORS headers.
   var headers = defaultCorsHeaders;
+  headers['Content-Type'] = "application/json";
+
+  var routes = {
+    'GET': {
+      '/classes/messages' : function(req, res){
+        response.writeHead(200, headers);
+        collection.find().sort({objectId:-1}).toArray(function(err, messages) {
+          console.log(messages);
+          response.end(JSON.stringify({results: messages.slice(0, 10)}));
+        });
+      }
+    },
+
+    'POST': {
+      '/classes/messages' : function(req, res){
+        var message = '';
+
+        req.on('data', function(data){
+          message += data;
+        });
+
+        req.on('end', function() {
+          //put message in messages array
+          var json = JSON.parse(message);
+          collection.count(function(err, count){
+            console.log('count must have had a callback');
+            if(err) throw err;
+            json.objectId = count + 1;
+            console.log(json);
+
+            // messages.unshift(json);
+            collection.insert(json, function(err, result) {
+              if(err) throw err;
+              response.writeHead(201, headers);
+              response.end(message);
+            });
+          });
+        });
+      }
+    },
+
+    'OPTIONS': {
+      '/classes/messages' : function(req, res){
+        response.writeHead(200, headers);
+        response.end();
+      }
+    }
+  };
+  var url = request.url.split('?')[0];
+  if(url[url.length-1] === '/'){
+    url = url.slice(0,url.length-1);
+  }
+  console.log(url);
+  var handler = routes[request.method] && routes[request.method][url];
+  if(handler){
+    handler(request,response);
+    return;
+  }
+  // The outgoing status.
+  var statusCode = 404;
+
 
   // Tell the client we are sending them plain text.
   //
   // You will need to change this if you are sending something
   // other than plain text, like JSON or HTML.
-  headers['Content-Type'] = "text/plain";
+  headers['Content-Type'] = "text/html";
 
   // .writeHead() writes to the request line and headers of the response,
   // which includes the status and all headers.
@@ -52,7 +87,7 @@ var requestHandler = function(request, response) {
   //
   // Calling .end "flushes" the response's internal buffer, forcing
   // node to actually send all the data over to the client.
-  response.end("Hello, World!");
+  response.end("404: Not Found");
 };
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
